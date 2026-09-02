@@ -33,4 +33,4 @@
 
 所有文件下载到项目目录，使用直接下载 URL、官方 API 或站点允许的下载方式。校验非零文件、MIME/扩展名、时长、分辨率和 SHA-256。HTML 错误页、缩略图、水印预览和损坏文件立即淘汰。
 
-视频转为 30fps、固定 GOP 的本地渲染版本。RTX 5070 可优先使用 `h264_nvenc`；失败时回退 `libx264`。转码文件只写 `assets/stock-render/`，原文件留在 `assets/source/` 供追溯。
+视频转为 30fps、固定 GOP 的本地渲染版本。检测到兼容的 NVIDIA GPU 时可优先使用 `h264_nvenc`；否则使用当前平台可用的硬件编码器或回退 `libx264`。转码文件只写 `assets/stock-render/`，原文件留在 `assets/source/` 供追溯。
