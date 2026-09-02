@@ -26,7 +26,9 @@ python <SKILL_DIR>\scripts\run_fast_pipeline.py `
   --font <WORKSPACE_ROOT>\.ai\fonts\NotoSansSC-VF.ttf
 ```
 
-如果项目 wrapper 不在默认位置，增加 `--hf-cli <absolute-path>`。调试期间可用 `--skip-render` 只执行到快照；需要完整重建时使用 `--force`。
+如果项目 wrapper 不在默认位置，增加 `--hf-cli <absolute-path>`。调试期间可用 `--skip-render` 只执行到快照；只重跑渲染与下游验收时使用 `--force-render`，需要完整重建时使用 `--force`。
+
+渲染 worker 默认按 CPU 与内存自动选择，最高 6 个。工作流先用 64x64 单帧测试验证 `h264_nvenc`，通过后向 HyperFrames 传入 `--gpu`；GPU 渲染失败会自动使用相同 worker 数回退 CPU。可用 `--render-workers <N>` 覆盖并发度，或用 `--no-gpu-render` 禁用 GPU 编码。
 
 ## 阶段顺序
 
@@ -34,13 +36,14 @@ python <SKILL_DIR>\scripts\run_fast_pipeline.py `
 2. `captions`：Whisper 时间边界映射回原始剧本。
 3. `assemble`。
 4. `lint`。
-5. 并行：`validate`、`inspect`。
-6. `snapshot`。
-7. `render`。
-8. `normalize_analyze` / `finalize`：两遍测量归一化音频，并直接复制视频流。
-9. `ffprobe`、`blackdetect`、`loudness`，并断言音视频轨、时长差、尺寸、黑帧和响度均合格。
+5. 并行：`validate --timeout 10000`、`inspect --strict` 和需要更新时的 `snapshot`。
+6. `render`：自适应 worker，优先 GPU 编码并支持 CPU 回退。
+7. `normalize_analyze` / `finalize`：两遍测量归一化音频，并直接复制视频流。
+8. `ffprobe`、`blackdetect`、`loudness`，并断言音视频轨、时长差、尺寸、黑帧和响度均合格。
 
-每个阶段的输出写入 `work/<stage>.log`，阶段耗时、总墙钟时间和跳过原因写入 `work/performance.json`。
+每个阶段的输出写入 `work/<stage>.log`，阶段耗时、总墙钟时间、完成/失败状态和跳过原因原子写入 `work/performance.json`。渲染文件与最终 MP4 也先写临时文件，成功后才原子替换旧版本。
+
+严格质量门禁成功后写 `work/quality-checks.ok`；组合及检查规则未变化时不重复启动 Chrome。最终媒体验收成功后写 `work/final-media.ok.json`，其中保存文件大小与 SHA-256；只有哈希仍一致时才复用 ffprobe、黑帧和响度结论。
 
 ## 断点续跑
 
@@ -50,11 +53,13 @@ python <SKILL_DIR>\scripts\run_fast_pipeline.py `
 - `assets/manifest.jsonl` 新于素材脚本和 `segments.json` 时跳过下载。
 - 字体子集新于字体、剧本和场景数据时跳过。
 - `captions.json` 新于音频时跳过对齐。
-- `index.html` 与 `timeline.json` 新于场景、音频、字幕和组装器时跳过组装。
-- contact sheet、渲染文件和最终文件均按依赖时间复用。
+- `index.html` 与 `timeline.json` 新于场景、音频、字幕、素材清单、实际素材和组装器时跳过组装。
+- contact sheet 与渲染文件只有在 HTML、时间线、音频、字体、vendor 文件、素材清单和全部已用素材均未改变时才复用。
+- 严格组合检查与最终媒体验收分别由成功标记复用；任一依赖、检查规则或最终文件内容变化都会使标记失效。
+- TTS 速度、模型或生成脚本改变会使语音缓存失效；Whisper 模型或对齐脚本改变会使字幕缓存失效。
 
 局部修改只使下游相关阶段失效。例如修改 `assemble.mjs` 会重跑组装、检查和渲染，但不会重新生成 TTS 或下载素材。
 
 ## 成功门槛
 
-命令返回 0，`lint`、`validate`、`inspect` 全部通过，`renders/final.mp4` 存在且 `work/performance.json` 完整。素材阶段允许失败降级，但失败详情必须保留在日志中，组装器不得引用不存在的素材。
+命令返回 0，`lint`、`validate`、严格模式 `inspect` 全部通过，`renders/final.mp4` 存在且 `work/performance.json` 的状态为 `complete`。素材阶段允许失败降级；失败时清空陈旧清单并使用原创图解，组装器不得引用不存在或位于项目目录之外的素材。

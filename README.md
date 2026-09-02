@@ -18,6 +18,10 @@
 - 使用 HyperFrames 进行字幕、动画、渲染和画面检查。
 - 使用两遍响度测量归一化，避免单遍处理偏离目标响度。
 - 支持 NVIDIA NVENC，并保留 CPU 编码回退方案。
+- 按 CPU/内存自动选择渲染 worker，并用实际编码冒烟测试决定是否启用 NVENC。
+- 素材、字体、音频或 vendor 文件变化会准确使下游缓存失效。
+- 下载、素材清单、渲染结果和性能报告采用临时文件成功后原子替换。
+- 严格组合检查与最终媒体检查使用成功标记和 MP4 哈希安全复用。
 - 快速模式会前置 1.2 倍速、子集化中文字体并复用数据驱动模板，减少渲染帧数和重复编排。
 
 ## 安装
@@ -87,6 +91,8 @@ cn-science-video-skill/
 │   ├── download_commons_assets.py
 │   ├── run_fast_pipeline.py
 │   └── subset_font.py
+├── tests/
+│   └── test_workflow.py
 └── references/
     ├── workflow.md
     ├── fast-pipeline.md
