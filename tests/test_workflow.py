@@ -23,6 +23,56 @@ commons = load("commons_assets", ROOT / "scripts" / "download_commons_assets.py"
 
 
 class PipelineTests(unittest.TestCase):
+    def write_visual_project(self, root: Path, signatures=None, include_videos=True):
+        project = root / "project"
+        source = project / "assets" / "source"
+        source.mkdir(parents=True)
+        signatures = signatures or ["split", "cutaway", "timeline", "recovery"]
+        segments = [
+            {
+                "id": f"0{index}", "visual_type": signature,
+                "primary_media_kind": "video", "composition_signature": signature,
+                "footage_friendly": True,
+            }
+            for index, signature in enumerate(signatures, 1)
+        ]
+        segments_path = project / "segments.json"
+        segments_path.write_text(json.dumps(segments), encoding="utf-8")
+        manifest = project / "assets" / "manifest.jsonl"
+        records = []
+        if include_videos:
+            for index in range(1, 5):
+                clip = source / f"clip-{index}.mp4"
+                clip.write_bytes(b"video")
+                records.append({
+                    "id": f"clip-{index}", "segment_id": f"0{index}", "kind": "video",
+                    "title": f"Clip {index}", "source_url": f"https://example.test/{index}",
+                    "license": "CC0", "local_source": clip.relative_to(project).as_posix(), "used": True,
+                })
+        manifest.write_text("\n".join(json.dumps(record) for record in records), encoding="utf-8")
+        return project, segments_path, manifest
+
+    def test_visual_diversity_accepts_distinct_licensed_footage(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project, segments, manifest = self.write_visual_project(Path(directory))
+            result = pipeline.validate_visual_diversity(project, segments, manifest)
+            self.assertEqual(result["distinct_composition_signatures"], 4)
+            self.assertEqual(result["video_covered_scenes"], 4)
+
+    def test_visual_diversity_rejects_repeated_templates(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project, segments, manifest = self.write_visual_project(
+                Path(directory), signatures=["cards", "cards", "cards", "timeline"]
+            )
+            with self.assertRaisesRegex(RuntimeError, "composition signatures"):
+                pipeline.validate_visual_diversity(project, segments, manifest)
+
+    def test_visual_diversity_rejects_static_only_footage_friendly_video(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project, segments, manifest = self.write_visual_project(Path(directory), include_videos=False)
+            with self.assertRaisesRegex(RuntimeError, "moving footage covers"):
+                pipeline.validate_visual_diversity(project, segments, manifest)
+
     def test_asset_change_invalidates_render(self):
         with tempfile.TemporaryDirectory() as directory:
             project = Path(directory)

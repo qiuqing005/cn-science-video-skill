@@ -82,18 +82,113 @@ def read_manifest_assets(project: Path, manifest: Path) -> list[Path]:
         record = json.loads(line)
         if not record.get("used"):
             continue
-        local_source = record.get("local_source") or record.get("local_render")
-        if not local_source:
+        local_paths = [record.get("local_source"), record.get("local_render")]
+        local_paths = list(dict.fromkeys(item for item in local_paths if item))
+        if not local_paths:
             raise RuntimeError(f"used asset has no local path at manifest line {line_number}")
-        asset = (project / local_source).resolve()
-        try:
-            asset.relative_to(project)
-        except ValueError as exc:
-            raise RuntimeError(f"manifest asset escapes the project directory: {asset}") from exc
-        if not asset.is_file():
-            raise RuntimeError(f"manifest references missing asset: {asset}")
-        assets.append(asset)
+        for local_path in local_paths:
+            asset = (project / local_path).resolve()
+            try:
+                asset.relative_to(project)
+            except ValueError as exc:
+                raise RuntimeError(f"manifest asset escapes the project directory: {asset}") from exc
+            if not asset.is_file():
+                raise RuntimeError(f"manifest references missing asset: {asset}")
+            assets.append(asset)
     return assets
+
+
+def read_manifest_records(manifest: Path) -> list[dict]:
+    if not manifest.exists():
+        return []
+    records = []
+    for line_number, line in enumerate(manifest.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.strip():
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(f"invalid JSON at manifest line {line_number}") from exc
+        record["_line_number"] = line_number
+        records.append(record)
+    return records
+
+
+def validate_visual_diversity(project: Path, segments_path: Path, manifest: Path) -> dict:
+    segments = json.loads(segments_path.read_text(encoding="utf-8"))
+    if not isinstance(segments, list) or len(segments) < 2:
+        raise RuntimeError("visual diversity gate requires at least two segments")
+
+    required_fields = ("id", "visual_type", "primary_media_kind", "composition_signature")
+    for index, segment in enumerate(segments, 1):
+        missing = [field for field in required_fields if not str(segment.get(field, "")).strip()]
+        if missing:
+            raise RuntimeError(f"segment {index} is missing visual diversity fields: {', '.join(missing)}")
+
+    signatures = [str(segment["composition_signature"]).strip().lower() for segment in segments]
+    minimum_signatures = max(2, (len(segments) * 3 + 3) // 4)
+    if len(set(signatures)) < minimum_signatures:
+        raise RuntimeError(
+            f"visual diversity gate failed: {len(set(signatures))}/{len(segments)} distinct composition signatures; "
+            f"need at least {minimum_signatures}"
+        )
+
+    records = [record for record in read_manifest_records(manifest) if record.get("used")]
+    for record in records:
+        missing = [field for field in ("title", "source_url", "license") if not str(record.get(field, "")).strip()]
+        if missing:
+            raise RuntimeError(
+                f"used media at manifest line {record['_line_number']} lacks licensing fields: {', '.join(missing)}"
+            )
+
+    video_suffixes = {".mp4", ".webm", ".mov", ".mkv", ".ogv", ".m4v"}
+    video_records = []
+    clip_segments: dict[str, set[str]] = {}
+    for record in records:
+        local_path = record.get("local_render") or record.get("local_source") or ""
+        kind = str(record.get("kind", "")).lower()
+        if kind != "video" and Path(local_path).suffix.lower() not in video_suffixes:
+            continue
+        video_records.append(record)
+        segment_ids = record.get("segment_ids", record.get("segment_id", []))
+        if not isinstance(segment_ids, list):
+            segment_ids = [segment_ids]
+        resolved = str((project / local_path).resolve()).lower()
+        clip_segments.setdefault(resolved, set()).update(str(item) for item in segment_ids if item is not None)
+
+    reused = [path for path, ids in clip_segments.items() if len(ids) > 1]
+    if reused:
+        raise RuntimeError("visual diversity gate failed: a moving clip is reused across scenes: " + ", ".join(reused))
+
+    footage_segments = [segment for segment in segments if segment.get("footage_friendly", True)]
+    covered_ids = {
+        str(segment_id)
+        for record in video_records
+        for segment_id in (
+            record.get("segment_ids", record.get("segment_id", []))
+            if isinstance(record.get("segment_ids", record.get("segment_id", [])), list)
+            else [record.get("segment_ids", record.get("segment_id"))]
+        )
+        if segment_id is not None
+    }
+    required_coverage = min(len(footage_segments), 3)
+    actual_coverage = sum(str(segment["id"]) in covered_ids for segment in footage_segments)
+    if footage_segments and (len(clip_segments) < required_coverage or actual_coverage < required_coverage):
+        raise RuntimeError(
+            f"visual diversity gate failed: moving footage covers {actual_coverage}/{len(footage_segments)} "
+            f"footage-friendly scenes with {len(clip_segments)} distinct clip(s); need {required_coverage}"
+        )
+
+    for segment in segments:
+        if str(segment["primary_media_kind"]).lower() == "video" and str(segment["id"]) not in covered_ids:
+            raise RuntimeError(f"segment {segment['id']} declares video as primary media but has no licensed moving clip")
+
+    return {
+        "segments": len(segments),
+        "distinct_composition_signatures": len(set(signatures)),
+        "distinct_video_clips": len(clip_segments),
+        "video_covered_scenes": actual_coverage,
+    }
 
 
 def collect_render_inputs(
@@ -325,10 +420,18 @@ def main() -> None:
             "--cache", str(Path(args.whisper_cache).resolve()),
         ])
 
+    diversity_started = time.perf_counter()
+    timings["visual_diversity"] = {
+        **validate_visual_diversity(project, project / "segments.json", asset_manifest),
+        "elapsed_s": round(time.perf_counter() - diversity_started, 3),
+    }
+
     index = project / "index.html"
     timeline = project / "timeline.json"
     manifest_assets = read_manifest_assets(project, asset_manifest)
     assemble_inputs = [project / "assemble.mjs", project / "segments.json", audio_meta, captions]
+    if (project / "style.css").exists():
+        assemble_inputs.append(project / "style.css")
     if asset_manifest.exists():
         assemble_inputs.extend([asset_manifest, *manifest_assets])
     if not args.force and is_fresh([index, timeline], assemble_inputs):

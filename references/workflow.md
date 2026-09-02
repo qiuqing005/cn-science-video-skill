@@ -47,7 +47,11 @@ $env:TMP = $env:TEMP
   "search_zh": ["中文检索词"],
   "search_en": ["English search terms"],
   "estimated_seconds": 12,
-  "fallback_visual": "找不到实拍素材时的原创图解"
+  "fallback_visual": "找不到实拍素材时的原创图解",
+  "visual_type": "该场景的主视觉类型",
+  "primary_media_kind": "video",
+  "composition_signature": "能区分构图与运动逻辑的稳定签名",
+  "footage_friendly": true
 }
 ```
 
@@ -73,7 +77,9 @@ $env:TMP = $env:TEMP
 
 ## 4. 素材和画面
 
-按段建立素材表：`segment_id`、旁白关键词、素材来源、许可/公共站点说明、入点、出点、替代方案。优先高关联镜头：真实器官/实验/显微镜/天文观测/食物或人物行为；每段至少准备一个备用素材。
+按段建立素材表：`segment_id`、旁白关键词、素材来源、许可/公共站点说明、入点、出点、替代方案。优先高关联镜头：真实器官/实验/显微镜/天文观测/食物或人物行为；每段至少准备一个备用素材。实拍友好主题必须让动态视频覆盖至少 3 个场景，优先每 6-12 秒切换一次镜头；同一视频不得跨场景复用，连续场景不得共享相同的构图签名。
+
+组装前运行视觉多样性检查：`visual_type`、`primary_media_kind`、`composition_signature` 必须完整；至少 75% 的场景具有不同构图签名；声明视频为主媒体的场景必须有已冻结且许可字段完整的视频记录。静态素材例外必须由题材本身决定，不能因为检索超时就默认让整片变成静态模板。
 
 自主寻找和下载素材时读取 [public-media.md](public-media.md)。可以使用 `media-use` 管理已有素材和清单，但公共站点下载仍必须记录原始来源与许可。
 

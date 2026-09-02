@@ -7,7 +7,7 @@
 调用前项目至少包含：
 
 - `audio_request.json`：`{"lines":[{"id":"01","text":"..."}]}`。
-- `segments.json`：与音频行 ID 和顺序对应的场景数据。
+- `segments.json`：与音频行 ID 和顺序对应的场景数据，并包含 `visual_type`、`primary_media_kind`、`composition_signature` 和 `footage_friendly`。
 - `SCRIPT_SOURCE.md`：原始剧本，供字体子集使用。
 - `assemble.mjs`：读取 `segments.json`、`audio_meta.json`、`captions.json` 并生成 `index.html`、`timeline.json`。
 - `hf-cli.mjs`：项目本地 HyperFrames 包装器；路径也可由 `--hf-cli` 指定。
@@ -45,7 +45,7 @@ python <SKILL_DIR>\scripts\run_fast_pipeline.py `
 
 每个阶段的输出写入 `work/<stage>.log`，阶段耗时、总墙钟时间、完成/失败状态和跳过原因原子写入 `work/performance.json`。渲染文件与最终 MP4 也先写临时文件，成功后才原子替换旧版本。
 
-严格质量门禁成功后写 `work/quality-checks.ok`；组合及检查规则未变化时不重复启动 Chrome。最终媒体验收成功后写 `work/final-media.ok.json`，其中保存文件大小与 SHA-256；只有哈希仍一致时才复用 ffprobe、黑帧和响度结论。
+素材与字幕合流后先执行视觉多样性门禁：构图签名至少 75% 不同，实拍友好主题至少 3 个场景具有不同动态视频，同一视频不得跨场复用，已用素材必须具备标题、来源和许可证字段。随后才执行 HyperFrames 检查。严格质量门禁成功后写 `work/quality-checks.ok`；组合及检查规则未变化时不重复启动 Chrome。最终媒体验收成功后写 `work/final-media.ok.json`，其中保存文件大小与 SHA-256；只有哈希仍一致时才复用 ffprobe、黑帧和响度结论。
 
 ## 断点续跑
 
