@@ -57,7 +57,7 @@ $env:TMP = $env:TEMP
 
 `segments.json` 写入完成后，立即在同一轮并行工具调用中启动：
 
-- **voice 工作流**：支持批处理的模型必须批量生成多段，不得默认逐段串行。Qwen3-TTS 可调用 `scripts/qwen_batch_tts.py`，输出已按目标速度处理的 `audio/segments/sNN.wav`、`audio_meta.json` 和词级时间戳。
+- **voice 工作流**：支持批处理的模型必须批量生成多段，不得默认逐段串行。Qwen3-TTS 可调用 `scripts/qwen_batch_tts.py`，输出已按目标速度处理的 `audio/segments/sNN.wav` 和 `audio_meta.json`；随后调用 `scripts/align_captions.py` 取得词级时间边界并生成 `captions.json`。
 - **assets 工作流**：按中英文关键词检索公共素材库，核查许可并下载到 `assets/source/`，写入 `assets/manifest.jsonl`，随后转码到 `assets/stock-render/`。
 - **主工作流**：并行期间创建 `STORYBOARD.md`、`frame.md`、图解方案和 HyperFrames 骨架，不占用上述两个写入范围。
 
@@ -87,7 +87,7 @@ $env:TMP = $env:TEMP
 
 默认直接复用 `WORKSPACE_ROOT/.ai/` 中质量合格的本地 TTS，不联网寻找替代模型。只有现有模型缺失、运行失败、语言/音色不匹配或用户明确要求更换时，才读取 [tts-models.md](tts-models.md) 并自主选择、下载和冒烟测试新模型。下载不得阻塞素材工作流。
 
-生成后检查每个段落的音频波形和时长；用变速后的真实时长更新 storyboard，字幕以词级或短句级时间戳为准。默认在渲染前使用 `atempo=1.2` 保持音高并缩短时间线；最终成片只做视频流复制和全片音频响度归一化，避免再次编码视频。若加速后旁白过密，缩短字幕行而不是继续提高速度。
+生成后检查每个段落的音频波形和时长；用变速后的真实时长更新 storyboard。对于已知原文的 TTS，Whisper 只提供时间边界，画面字幕必须由原始剧本文字强制回填，不能直接采用可能识错专业术语的转写文本。字幕组默认不超过 16 个汉字或 3.2 秒；校验每组 `start < end`、不重叠、不超过对应音频时长，并确认所有字幕拼接后与原始剧本一致。默认在渲染前使用 `atempo=1.2` 保持音高并缩短时间线；最终成片只做视频流复制和全片音频响度归一化，避免再次编码视频。
 
 ## 6. HyperFrames 实现
 

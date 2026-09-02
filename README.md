@@ -81,6 +81,7 @@ cn-science-video-skill/
 │   └── openai.yaml
 ├── scripts/
 │   ├── qwen_batch_tts.py
+│   ├── align_captions.py
 │   └── subset_font.py
 └── references/
     ├── workflow.md
@@ -96,4 +97,4 @@ cn-science-video-skill/
 - [公共素材检索与许可记录](references/public-media.md)
 - [TTS 模型选择与下载](references/tts-models.md)
 
-快速模式提供 `scripts/qwen_batch_tts.py` 与 `scripts/subset_font.py`，分别用于批量生成 Qwen3-TTS 音频和缩小中文字体嵌入体积。
+快速模式提供 `scripts/qwen_batch_tts.py`、`scripts/align_captions.py` 与 `scripts/subset_font.py`，分别用于批量生成音频、按真实语音时间对齐原始字幕和缩小中文字体嵌入体积。
