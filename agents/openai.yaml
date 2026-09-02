@@ -1,0 +1,6 @@
+interface:
+  display_name: "中文科普视频制作"
+  short_description: "收到剧本后并行制作配音与公共科普素材"
+  default_prompt: "使用 $cn-science-video 将这份剧本制作成中文科普视频，并行生成普通话配音和下载公共素材。"
+policy:
+  allow_implicit_invocation: true
