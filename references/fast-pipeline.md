@@ -37,10 +37,10 @@ python <SKILL_DIR>\scripts\run_fast_pipeline.py `
 5. 并行：`validate`、`inspect`。
 6. `snapshot`。
 7. `render`。
-8. `finalize`：复制视频流，仅归一化音频。
+8. `normalize_analyze` / `finalize`：两遍测量归一化音频，并直接复制视频流。
 9. `ffprobe`、`blackdetect`、`loudness`，并断言音视频轨、时长差、尺寸、黑帧和响度均合格。
 
-每个阶段的输出写入 `work/<stage>.log`，耗时和跳过原因写入 `work/performance.json`。
+每个阶段的输出写入 `work/<stage>.log`，阶段耗时、总墙钟时间和跳过原因写入 `work/performance.json`。
 
 ## 断点续跑
 

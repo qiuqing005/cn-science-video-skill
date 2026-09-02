@@ -35,6 +35,7 @@ def is_fresh(outputs: list[Path], inputs: list[Path]) -> bool:
 
 
 def main() -> None:
+    pipeline_started = time.perf_counter()
     args = parse_args()
     skill_dir = Path(__file__).resolve().parents[1]
     project = Path(args.project).resolve()
@@ -181,13 +182,29 @@ def main() -> None:
             timings["render"] = {"skipped": True, "reason": "fresh rendered.mp4"}
         else:
             run("render", ["node", str(hf_cli), "render", "--quality", "high", "--output", str(rendered)])
-        if not args.force and is_fresh([final], [rendered]):
+        if not args.force and is_fresh([final], [rendered, Path(__file__).resolve()]):
             timings["finalize"] = {"skipped": True, "reason": "fresh final.mp4"}
         else:
+            run("normalize_analyze", [
+                "ffmpeg", "-hide_banner", "-i", str(rendered),
+                "-af", "loudnorm=I=-16:TP=-1.5:LRA=11:print_format=json",
+                "-f", "null", "NUL" if os.name == "nt" else "/dev/null",
+            ])
+            analysis_log = (work / "normalize_analyze.log").read_text(encoding="utf-8", errors="replace")
+            blocks = re.findall(r"\{\s*\"input_i\"[\s\S]*?\}", analysis_log)
+            if not blocks:
+                raise RuntimeError("could not parse loudnorm analysis")
+            measured = json.loads(blocks[-1])
+            loudnorm = (
+                "loudnorm=I=-16:TP=-1.5:LRA=11:linear=true:print_format=summary:"
+                f"measured_I={measured['input_i']}:measured_TP={measured['input_tp']}:"
+                f"measured_LRA={measured['input_lra']}:measured_thresh={measured['input_thresh']}:"
+                f"offset={measured['target_offset']}"
+            )
             run("finalize", [
                 "ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", str(rendered),
                 "-map", "0:v", "-map", "0:a", "-c:v", "copy",
-                "-af", "loudnorm=I=-16:TP=-1.5:LRA=11", "-c:a", "aac", "-b:a", "192k",
+                "-af", loudnorm, "-c:a", "aac", "-b:a", "192k",
                 "-ar", "48000", "-movflags", "+faststart", str(final),
             ])
         run("ffprobe", [
@@ -219,6 +236,7 @@ def main() -> None:
         "finished_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "project": str(project),
         "render_skipped": args.skip_render,
+        "total_elapsed_s": round(time.perf_counter() - pipeline_started, 3),
     }
     (work / "performance.json").write_text(json.dumps(timings, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(timings, ensure_ascii=False), flush=True)
