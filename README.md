@@ -8,6 +8,7 @@
 
 - 将中文剧本拆分为可执行的镜头和素材任务。
 - 并行运行 TTS 与公共素材检索，减少串行等待时间。
+- Qwen3-TTS 支持多段批处理，并按显存自动降级批大小。
 - 默认使用沉稳、自然、语气统一的普通话男性配音。
 - 优先复用用户工作区中已有的合格 TTS；必要时从可信官方来源寻找并验证其他中文模型。
 - 自动生成中英文素材关键词，检索科学机构和许可明确的公共素材库。
@@ -15,6 +16,7 @@
 - 缺少合适实拍素材时，使用原创动态图解或数据可视化补位。
 - 使用 HyperFrames 进行字幕、动画、渲染和画面检查。
 - 支持 NVIDIA NVENC，并保留 CPU 编码回退方案。
+- 快速模式会前置 1.2 倍速、子集化中文字体并复用数据驱动模板，减少渲染帧数和重复编排。
 
 ## 安装
 
@@ -77,8 +79,12 @@ cn-science-video-skill/
 ├── SKILL.md
 ├── agents/
 │   └── openai.yaml
+├── scripts/
+│   ├── qwen_batch_tts.py
+│   └── subset_font.py
 └── references/
     ├── workflow.md
+    ├── performance.md
     ├── public-media.md
     └── tts-models.md
 ```
@@ -86,5 +92,8 @@ cn-science-video-skill/
 详细执行规范见：
 
 - [标准制作流程](references/workflow.md)
+- [快速模式与性能策略](references/performance.md)
 - [公共素材检索与许可记录](references/public-media.md)
 - [TTS 模型选择与下载](references/tts-models.md)
+
+快速模式提供 `scripts/qwen_batch_tts.py` 与 `scripts/subset_font.py`，分别用于批量生成 Qwen3-TTS 音频和缩小中文字体嵌入体积。

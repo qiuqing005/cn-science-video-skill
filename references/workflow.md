@@ -57,7 +57,7 @@ $env:TMP = $env:TEMP
 
 `segments.json` 写入完成后，立即在同一轮并行工具调用中启动：
 
-- **voice 工作流**：按段调用本地 TTS，输出 `audio/segments/sNN.wav`，再拼接、响度归一化并生成 `audio_meta.json` 与词级时间戳。
+- **voice 工作流**：支持批处理的模型必须批量生成多段，不得默认逐段串行。Qwen3-TTS 可调用 `scripts/qwen_batch_tts.py`，输出已按目标速度处理的 `audio/segments/sNN.wav`、`audio_meta.json` 和词级时间戳。
 - **assets 工作流**：按中英文关键词检索公共素材库，核查许可并下载到 `assets/source/`，写入 `assets/manifest.jsonl`，随后转码到 `assets/stock-render/`。
 - **主工作流**：并行期间创建 `STORYBOARD.md`、`frame.md`、图解方案和 HyperFrames 骨架，不占用上述两个写入范围。
 
@@ -87,25 +87,23 @@ $env:TMP = $env:TEMP
 
 默认直接复用 `WORKSPACE_ROOT/.ai/` 中质量合格的本地 TTS，不联网寻找替代模型。只有现有模型缺失、运行失败、语言/音色不匹配或用户明确要求更换时，才读取 [tts-models.md](tts-models.md) 并自主选择、下载和冒烟测试新模型。下载不得阻塞素材工作流。
 
-生成后检查每个段落的音频波形和时长；用真实时长更新 storyboard，字幕以词级或短句级时间戳为准。先做响度归一化，再在最终阶段统一 1.2 倍速并保持音高。若加速后旁白过密，缩短字幕行而不是把画面再单独加速。
+生成后检查每个段落的音频波形和时长；用变速后的真实时长更新 storyboard，字幕以词级或短句级时间戳为准。默认在渲染前使用 `atempo=1.2` 保持音高并缩短时间线；最终成片只做视频流复制和全片音频响度归一化，避免再次编码视频。若加速后旁白过密，缩短字幕行而不是继续提高速度。
 
 ## 6. HyperFrames 实现
 
 先读 `hyperframes`、`hyperframes-core`、`hyperframes-media` 和需要的 `hyperframes-animation`。每个场景使用可 seek 的单一时间线、`data-*` 时间属性和 `class="clip"`；媒体播放交给框架。镜头 HTML 只承担本镜头，不让多个 worker 同时写同一文件。
 
-推荐顺序：
+默认快速顺序：
 
 ```powershell
 node hf-cli.mjs lint
-node hf-cli.mjs validate
-node hf-cli.mjs inspect
+# lint 通过后，并行执行 validate 与 inspect
 node hf-cli.mjs snapshot --at <各段中点>
-node hf-cli.mjs render --quality high --output renders\final-rendered-raw.mp4
-node normalize-audio.mjs
-ffmpeg -i normal.mp4 -filter_complex "[0:v]setpts=PTS/1.2[v];[0:a]atempo=1.2[a]" -map "[v]" -map "[a]" -c:v h264_nvenc -c:a aac renders\final.mp4
+node hf-cli.mjs render --quality high --output renders\rendered.mp4
+ffmpeg -i renders\rendered.mp4 -c:v copy -af "loudnorm=I=-16:TP=-1.5:LRA=11" -c:a aac -ar 48000 renders\final.mp4
 ```
 
-实际脚本名称以项目已有模板为准。HyperFrames 检查失败时只修复导致失败的文件后重跑该检查，不连续堆叠无关命令。
+库存视频应在素材转码阶段完成目标倍速处理，时间线直接使用处理后的时长。实际脚本名称以项目已有模板为准。HyperFrames 检查失败时只修复导致失败的文件后重跑该检查，不连续堆叠无关命令。
 
 ## 7. 最终验收
 

@@ -7,12 +7,13 @@ description: "把用户提交的中文科普剧本制作成成片；自动并行
 
 将用户给出的剧本制作成可发布的中文科普视频。默认使用 HyperFrames HTML 渲染，默认横屏 1920x1080、普通话男性声线、沉稳统一语气、最终 1.2 倍速。收到完整剧本后直接启动制作，不要求用户再次确认已经明确的参数。
 
-执行前读取 [references/workflow.md](references/workflow.md)。需要寻找素材时读取 [references/public-media.md](references/public-media.md)；现有 TTS 不满足要求或用户要求换模型时读取 [references/tts-models.md](references/tts-models.md)。
+执行前读取 [references/workflow.md](references/workflow.md)。默认同时应用 [references/performance.md](references/performance.md) 的快速模式；需要寻找素材时读取 [references/public-media.md](references/public-media.md)；现有 TTS 不满足要求或用户要求换模型时读取 [references/tts-models.md](references/tts-models.md)。
 
 ## 执行原则
 
 - 默认直接制作，不先输出冗长方案。只有用户明确要求方案、素材授权不清、或缺少必须的源视频时才暂停询问。
 - 默认采用“快速创作模式”：一次性确定标题、受众、时长、画幅、视觉路线和声音参数；不重复读取无关文档或反复改稿。
+- 120 秒以内的成片优先使用已有数据驱动模板，只生成 `segments.json` 和少量场景配置；不得为每个项目重新手写完整渲染器。只有模板无法表达核心机制时才为该场景增加定制图解。
 - 剧本分段并落盘后，必须同时启动两条独立工作流：`voice` 负责 TTS、响度和时间戳，`assets` 负责关键词扩展、公共素材检索、许可核查、下载和转码。两者运行时，主流程继续搭建 storyboard、原创图解和项目结构。不要等一条完成后才开始另一条。
 - 并行任务写入边界固定：`voice` 只写 `audio/`、`audio_meta.json` 和词级时间戳；`assets` 只写 `assets/source/`、`assets/stock-render/` 和 `assets/manifest.jsonl`；主流程负责脚本、storyboard、HTML 和最终集成。
 - 用户文案是事实来源，但必须修正明显的绝对化、过时数字和医学误导。无法核实的统计数据改成审慎表述，必要时在画面或片尾加“仅供科普，不能替代医疗建议”。
@@ -21,7 +22,7 @@ description: "把用户提交的中文科普剧本制作成成片；自动并行
 - 解说默认复用用户工作目录内已安装且质量合格的普通话男性声线；存在 Qwen3-TTS `Uncle_Fu` 时可优先使用。指令固定为标准普通话、沉稳、自然、克制、段落能量一致。除非用户指定，不使用方言音色或情绪大幅起伏的提示词。
 - 现有模型不能满足语言、音色或稳定性时，AI 可以自主从 Hugging Face、ModelScope 或项目官方仓库评估并下载 TTS 模型。先核对许可证、维护状态、模型大小、当前 GPU/CPU 适配和推理依赖；优先官方权重和 safetensors，拒绝不明网盘、任意可执行安装包与未审查的远程代码。
 - 开始时把用户明确分配的目录设为 `WORKSPACE_ROOT`；未单独指定时使用当前任务的工作区根目录。先做可写测试，再在其中创建项目、`.ai/` 和 `.cache/`。所有新下载的依赖、模型、缓存、媒体和输出都必须位于 `WORKSPACE_ROOT`，不得静默写入用户主目录、系统盘默认缓存或需要管理员权限的位置。无法重定向的安装应改用便携版或项目级环境；仍不可行时才说明阻塞。不要移动或删除其他任务已有文件。
-- 1.2 倍速只在最终音画合成阶段执行：视频 `setpts=PTS/1.2`，音频 `atempo=1.2`，并使用保持音高的处理。不要让各镜头分别变速导致字幕和转场漂移。
+- 默认在渲染前把 TTS 与库存视频统一预处理为 1.2 倍速，并用处理后的真实时长构建时间线；这样可减少约 17% 渲染帧数。音频使用 `atempo=1.2` 保持音高，视频使用 `setpts=PTS/1.2`。若用户明确要求保留素材原速度，才在最终合成阶段整体加速。
 - 检测到兼容的 NVIDIA GPU 时优先 H.264 NVENC；否则使用当前平台可用的硬件编码器或 CPU fallback。不要为了硬件加速牺牲清晰度、音频同步或验收。
 
 ## 必须的交付门禁
