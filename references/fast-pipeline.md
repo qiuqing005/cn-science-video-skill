@@ -28,7 +28,9 @@ python <SKILL_DIR>\scripts\run_fast_pipeline.py `
 
 如果项目 wrapper 不在默认位置，增加 `--hf-cli <absolute-path>`。调试期间可用 `--skip-render` 只执行到快照；只重跑渲染与下游验收时使用 `--force-render`，需要完整重建时使用 `--force`。
 
-渲染 worker 默认按 CPU 与内存自动选择，最高 6 个。工作流先用 64x64 单帧测试验证 `h264_nvenc`，通过后向 HyperFrames 传入 `--gpu`；GPU 渲染失败会自动使用相同 worker 数回退 CPU。可用 `--render-workers <N>` 覆盖并发度，或用 `--no-gpu-render` 禁用 GPU 编码。
+渲染 worker 默认按 CPU 与内存自动选择，最高 6 个。工作流先用 256x256 单帧测试验证 `h264_nvenc`，通过后向 HyperFrames 传入 `--gpu`；GPU 渲染失败会自动使用相同 worker 数回退 CPU。可用 `--render-workers <N>` 覆盖并发度，或用 `--no-gpu-render` 禁用 GPU 编码。
+
+默认保持 30fps。需要进一步压缩时间时使用 `--fast-render`，启用已验证的 24fps/1080p/high 配置；也可用 `--fps <值>` 显式指定。帧率与质量写入 `work/render-profile.json`，配置变化会强制重渲染，最终 ffprobe 必须确认实际帧率匹配。
 
 ## 阶段顺序
 

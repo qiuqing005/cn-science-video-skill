@@ -72,6 +72,14 @@ class PipelineTests(unittest.TestCase):
             os.utime(target, ns=timestamps)
             self.assertFalse(pipeline.verified_marker_matches(marker, target, rules))
 
+    def test_render_profile_and_fps_are_exact(self):
+        with tempfile.TemporaryDirectory() as directory:
+            profile = Path(directory) / "render-profile.json"
+            profile.write_text(json.dumps({"fps": "24", "quality": "high"}), encoding="utf-8")
+            self.assertTrue(pipeline.render_profile_matches(profile, {"fps": "24", "quality": "high"}))
+            self.assertFalse(pipeline.render_profile_matches(profile, {"fps": "30", "quality": "high"}))
+            self.assertAlmostEqual(pipeline.fps_value("30000/1001"), 29.97003, places=4)
+
 
 class CommonsTests(unittest.TestCase):
     def test_relevance_rejects_unrelated_and_reversed_phrase(self):

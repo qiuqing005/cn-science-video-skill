@@ -25,6 +25,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--whisper-model", default="base")
     parser.add_argument("--render-workers", type=int, help="Chrome render workers; auto-tuned when omitted")
     parser.add_argument("--no-gpu-render", action="store_true", help="Disable NVENC even when the local smoke test passes")
+    parser.add_argument("--fps", default="30", help="Output frame rate accepted by HyperFrames")
+    parser.add_argument("--fast-render", action="store_true", help="Use the validated 24fps fast profile")
     parser.add_argument("--force", action="store_true", help="Ignore reusable outputs")
     parser.add_argument("--force-render", action="store_true", help="Re-render without invalidating voice, assets, captions, or assembly")
     parser.add_argument("--skip-render", action="store_true")
@@ -140,6 +142,20 @@ def verified_marker_matches(marker: Path, target: Path, rules: Path) -> bool:
         return False
 
 
+def fps_value(value: str) -> float:
+    if "/" in value:
+        numerator, denominator = value.split("/", 1)
+        return float(numerator) / float(denominator)
+    return float(value)
+
+
+def render_profile_matches(path: Path, expected: dict) -> bool:
+    try:
+        return json.loads(path.read_text(encoding="utf-8")) == expected
+    except (OSError, json.JSONDecodeError):
+        return False
+
+
 def gpu_encoder_available(env: dict[str, str]) -> bool:
     sink = "NUL" if os.name == "nt" else "/dev/null"
     result = subprocess.run(
@@ -153,6 +169,11 @@ def gpu_encoder_available(env: dict[str, str]) -> bool:
 def main() -> None:
     pipeline_started = time.perf_counter()
     args = parse_args()
+    target_fps = "24" if args.fast_render else args.fps
+    try:
+        expected_fps = fps_value(target_fps)
+    except (ValueError, ZeroDivisionError) as exc:
+        raise SystemExit(f"Invalid --fps value: {target_fps}") from exc
     skill_dir = Path(__file__).resolve().parents[1]
     project = Path(args.project).resolve()
     workspace = project.parent
@@ -354,17 +375,20 @@ def main() -> None:
     rendered = renders / "rendered.mp4"
     final = renders / "final.mp4"
     if not args.skip_render:
-        if not args.force and not args.force_render and is_fresh([rendered], visual_inputs):
+        render_profile_path = work / "render-profile.json"
+        expected_render_profile = {"fps": target_fps, "quality": "high"}
+        profile_matches = render_profile_matches(render_profile_path, expected_render_profile)
+        if not args.force and not args.force_render and profile_matches and is_fresh([rendered], visual_inputs):
             timings["render"] = {"skipped": True, "reason": "fresh rendered.mp4"}
         else:
             rendered_temporary = rendered.with_name(".rendered.tmp.mp4")
             rendered_temporary.unlink(missing_ok=True)
             render_workers = args.render_workers or choose_render_workers()
             use_gpu = not args.no_gpu_render and gpu_encoder_available(env)
-            timings["render_config"] = {"workers": render_workers, "gpu": use_gpu}
+            timings["render_config"] = {"workers": render_workers, "gpu": use_gpu, "fps": target_fps, "quality": "high"}
             render_command = [
                 "node", str(hf_cli), "render", "--quality", "high",
-                "--workers", str(render_workers), "--output", str(rendered_temporary),
+                "--fps", target_fps, "--workers", str(render_workers), "--output", str(rendered_temporary),
             ]
             if use_gpu:
                 render_command.append("--gpu")
@@ -374,13 +398,18 @@ def main() -> None:
                 rendered_temporary.unlink(missing_ok=True)
                 run("render_fallback_cpu", [
                     "node", str(hf_cli), "render", "--quality", "high",
-                    "--workers", str(render_workers), "--output", str(rendered_temporary),
+                    "--fps", target_fps, "--workers", str(render_workers), "--output", str(rendered_temporary),
                 ])
             elif return_code:
                 raise RuntimeError(f"render failed; see {work / 'render.log'}")
             if not rendered_temporary.is_file():
                 raise RuntimeError("render command succeeded without producing an output file")
             os.replace(rendered_temporary, rendered)
+            write_atomic_text(render_profile_path, json.dumps(expected_render_profile, indent=2) + "\n")
+            render_log = (work / "render.log").read_text(encoding="utf-8", errors="replace")
+            reuse = re.search(r"static-frame dedup:\s*\d+/\d+ frame\(s\) reusable \((\d+)%", render_log)
+            if reuse:
+                timings["render"]["static_reuse_pct"] = int(reuse.group(1))
         if not args.force and is_fresh([final], [rendered, Path(__file__).resolve()]):
             timings["finalize"] = {"skipped": True, "reason": "fresh final.mp4"}
         else:
@@ -429,6 +458,9 @@ def main() -> None:
             audio_stream = audio_streams[0]
             if int(video.get("width", 0)) <= 0 or int(video.get("height", 0)) <= 0:
                 raise RuntimeError("final video has invalid dimensions")
+            actual_fps = fps_value(str(video.get("r_frame_rate", "0/1")))
+            if abs(actual_fps - expected_fps) > 0.05:
+                raise RuntimeError(f"final frame rate {actual_fps:.3f} does not match requested {expected_fps:.3f}")
             if abs(float(video.get("duration", 0)) - float(audio_stream.get("duration", 0))) > 0.25:
                 raise RuntimeError("final audio/video durations differ by more than 250ms")
             run("blackdetect", ["ffmpeg", "-hide_banner", "-i", str(final), "-vf", "blackdetect=d=0.3:pix_th=0.10", "-an", "-f", "null", "NUL" if os.name == "nt" else "/dev/null"], False)
