@@ -9,6 +9,8 @@ description: "把用户提交的中文科普剧本制作成成片；自动并行
 
 执行前读取 [references/workflow.md](references/workflow.md)。默认同时应用 [references/performance.md](references/performance.md) 的快速模式；需要寻找素材时读取 [references/public-media.md](references/public-media.md)；现有 TTS 不满足要求或用户要求换模型时读取 [references/tts-models.md](references/tts-models.md)。
 
+项目具备 `audio_request.json`、`segments.json`、`assemble.mjs` 和本地 HyperFrames 包装器后，优先调用 `scripts/run_fast_pipeline.py` 一次完成后续流程，不再由 AI 逐条手工执行命令。参数和断点续跑规则见 [references/fast-pipeline.md](references/fast-pipeline.md)。
+
 ## 执行原则
 
 - 默认直接制作，不先输出冗长方案。只有用户明确要求方案、素材授权不清、或缺少必须的源视频时才暂停询问。

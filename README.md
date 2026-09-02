@@ -12,6 +12,7 @@
 - 默认使用沉稳、自然、语气统一的普通话男性配音。
 - 优先复用用户工作区中已有的合格 TTS；必要时从可信官方来源寻找并验证其他中文模型。
 - 自动生成中英文素材关键词，检索科学机构和许可明确的公共素材库。
+- 内置 Wikimedia 素材解析器会并发检索并优先下载适合 1080p 成片的缩略版本。
 - 记录素材来源、作者、许可证、本地路径和文件哈希。
 - 缺少合适实拍素材时，使用原创动态图解或数据可视化补位。
 - 使用 HyperFrames 进行字幕、动画、渲染和画面检查。
@@ -82,9 +83,12 @@ cn-science-video-skill/
 ├── scripts/
 │   ├── qwen_batch_tts.py
 │   ├── align_captions.py
+│   ├── download_commons_assets.py
+│   ├── run_fast_pipeline.py
 │   └── subset_font.py
 └── references/
     ├── workflow.md
+    ├── fast-pipeline.md
     ├── performance.md
     ├── public-media.md
     └── tts-models.md
@@ -93,8 +97,11 @@ cn-science-video-skill/
 详细执行规范见：
 
 - [标准制作流程](references/workflow.md)
+- [一键快速工作流](references/fast-pipeline.md)
 - [快速模式与性能策略](references/performance.md)
 - [公共素材检索与许可记录](references/public-media.md)
 - [TTS 模型选择与下载](references/tts-models.md)
 
 快速模式提供 `scripts/qwen_batch_tts.py`、`scripts/align_captions.py` 与 `scripts/subset_font.py`，分别用于批量生成音频、按真实语音时间对齐原始字幕和缩小中文字体嵌入体积。
+
+项目输入准备完成后，`scripts/run_fast_pipeline.py` 可一键执行并行媒体处理、字幕对齐、HyperFrames 检查、渲染和最终验收，并自动复用仍然有效的阶段输出。
