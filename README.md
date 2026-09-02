@@ -70,21 +70,6 @@ Skill 优先寻找来源和许可明确的内容，例如：
 
 每项素材仍需单独核对使用条款。普通搜索引擎图片、社交媒体和许可不明的视频不会被直接用于成片。
 
-## 本地存储约束
-
-本 Skill 的工作环境默认位于 `H:\短剧`，模型、虚拟环境、下载素材和缓存均应保存在该目录，不写入 C 盘的默认缓存位置。主要目录包括：
-
-```text
-H:\短剧\.ai\tts\models
-H:\短剧\.ai\tts\envs
-H:\短剧\.cache\huggingface
-H:\短剧\.cache\modelscope
-H:\短剧\.cache\torch
-H:\短剧\.cache\pip
-```
-
-在其他电脑上使用时，应先按自己的工作盘修改 [SKILL.md](SKILL.md) 和 [工作流配置](references/workflow.md) 中的本地路径。
-
 ## 文件结构
 
 ```text
