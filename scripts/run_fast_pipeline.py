@@ -133,12 +133,39 @@ def validate_visual_diversity(project: Path, segments_path: Path, manifest: Path
             f"need at least {minimum_signatures}"
         )
 
+    segments_by_id = {str(segment["id"]): segment for segment in segments}
+    semantic_roles = {"subject", "action", "mechanism", "scale", "evidence", "consequence", "comparison"}
     records = [record for record in read_manifest_records(manifest) if record.get("used")]
     for record in records:
-        missing = [field for field in ("title", "source_url", "license") if not str(record.get(field, "")).strip()]
+        required_media_fields = (
+            "title", "source_url", "license", "segment_id", "shot_id", "narration_span",
+            "semantic_role", "relevance_reason", "relevance_score",
+        )
+        missing = [field for field in required_media_fields if not str(record.get(field, "")).strip()]
         if missing:
             raise RuntimeError(
-                f"used media at manifest line {record['_line_number']} lacks licensing fields: {', '.join(missing)}"
+                f"used media at manifest line {record['_line_number']} lacks licensing or semantic fields: {', '.join(missing)}"
+            )
+        segment_id = str(record["segment_id"])
+        if segment_id not in segments_by_id:
+            raise RuntimeError(f"used media at manifest line {record['_line_number']} references unknown segment {segment_id}")
+        narration = re.sub(r"[\W_]+", "", str(segments_by_id[segment_id].get("narration", "")), flags=re.UNICODE)
+        narration_span = re.sub(r"[\W_]+", "", str(record["narration_span"]), flags=re.UNICODE)
+        if len(narration_span) < 4 or narration_span not in narration:
+            raise RuntimeError(
+                f"used media at manifest line {record['_line_number']} has a narration_span not found in segment {segment_id}"
+            )
+        if str(record["semantic_role"]).lower() not in semantic_roles:
+            raise RuntimeError(
+                f"used media at manifest line {record['_line_number']} has invalid semantic_role {record['semantic_role']}"
+            )
+        try:
+            relevance_score = float(record["relevance_score"])
+        except (TypeError, ValueError) as exc:
+            raise RuntimeError(f"invalid relevance_score at manifest line {record['_line_number']}") from exc
+        if relevance_score < 0.7 or relevance_score > 1:
+            raise RuntimeError(
+                f"used media at manifest line {record['_line_number']} has relevance_score {relevance_score}; require 0.7-1.0"
             )
 
     video_suffixes = {".mp4", ".webm", ".mov", ".mkv", ".ogv", ".m4v"}
@@ -188,6 +215,7 @@ def validate_visual_diversity(project: Path, segments_path: Path, manifest: Path
         "distinct_composition_signatures": len(set(signatures)),
         "distinct_video_clips": len(clip_segments),
         "video_covered_scenes": actual_coverage,
+        "semantically_bound_media": len(records),
     }
 
 

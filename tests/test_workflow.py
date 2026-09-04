@@ -32,7 +32,7 @@ class PipelineTests(unittest.TestCase):
             {
                 "id": f"0{index}", "visual_type": signature,
                 "primary_media_kind": "video", "composition_signature": signature,
-                "footage_friendly": True,
+                "footage_friendly": True, "narration": f"展示第{index}段对应的科学过程和结果",
             }
             for index, signature in enumerate(signatures, 1)
         ]
@@ -48,6 +48,9 @@ class PipelineTests(unittest.TestCase):
                     "id": f"clip-{index}", "segment_id": f"0{index}", "kind": "video",
                     "title": f"Clip {index}", "source_url": f"https://example.test/{index}",
                     "license": "CC0", "local_source": clip.relative_to(project).as_posix(), "used": True,
+                    "shot_id": f"s{index}-a", "narration_span": f"第{index}段对应的科学过程",
+                    "semantic_role": "mechanism", "relevance_reason": "画面直接展示旁白描述的科学过程",
+                    "relevance_score": 0.92,
                 })
         manifest.write_text("\n".join(json.dumps(record) for record in records), encoding="utf-8")
         return project, segments_path, manifest
@@ -71,6 +74,24 @@ class PipelineTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             project, segments, manifest = self.write_visual_project(Path(directory), include_videos=False)
             with self.assertRaisesRegex(RuntimeError, "moving footage covers"):
+                pipeline.validate_visual_diversity(project, segments, manifest)
+
+    def test_visual_diversity_rejects_media_not_bound_to_narration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project, segments, manifest = self.write_visual_project(Path(directory))
+            records = [json.loads(line) for line in manifest.read_text(encoding="utf-8").splitlines()]
+            records[0]["narration_span"] = "与本段旁白无关的宽泛素材"
+            manifest.write_text("\n".join(json.dumps(record) for record in records), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "narration_span not found"):
+                pipeline.validate_visual_diversity(project, segments, manifest)
+
+    def test_visual_diversity_rejects_low_relevance_media(self):
+        with tempfile.TemporaryDirectory() as directory:
+            project, segments, manifest = self.write_visual_project(Path(directory))
+            records = [json.loads(line) for line in manifest.read_text(encoding="utf-8").splitlines()]
+            records[0]["relevance_score"] = 0.4
+            manifest.write_text("\n".join(json.dumps(record) for record in records), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "require 0.7-1.0"):
                 pipeline.validate_visual_diversity(project, segments, manifest)
 
     def test_asset_change_invalidates_render(self):

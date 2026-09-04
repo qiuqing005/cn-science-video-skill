@@ -24,7 +24,7 @@
 `assets/manifest.jsonl` 每行至少包含：
 
 ```json
-{"id":"s01-a","segment_id":"s01","kind":"video","source_url":"https://...","download_url":"https://...","creator":"机构或作者","license":"CC BY 4.0","license_url":"https://...","retrieved_at":"2026-08-31T12:00:00+08:00","local_source":"assets/source/s01-a.mp4","local_render":"assets/stock-render/s01-a.mp4","sha256":"...","used":true}
+{"id":"s01-a","segment_id":"s01","shot_id":"s01-a","narration_span":"旁白中的对应原句","semantic_role":"mechanism","relevance_reason":"画面直接展示旁白描述的机制","relevance_score":0.9,"kind":"video","source_url":"https://...","download_url":"https://...","creator":"机构或作者","license":"CC BY 4.0","license_url":"https://...","retrieved_at":"2026-08-31T12:00:00+08:00","local_source":"assets/source/s01-a.mp4","local_render":"assets/stock-render/s01-a.mp4","sha256":"...","used":true}
 ```
 
 没有明确许可或来源页无法访问时设置 `used:false`，并使用备用素材或原创图解。需要署名的素材同时生成 `CREDITS.md`，不得把署名只留在内部清单中。

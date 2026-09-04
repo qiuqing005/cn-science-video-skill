@@ -77,9 +77,9 @@ $env:TMP = $env:TEMP
 
 ## 4. 素材和画面
 
-按段建立素材表：`segment_id`、旁白关键词、素材来源、许可/公共站点说明、入点、出点、替代方案。优先高关联镜头：真实器官/实验/显微镜/天文观测/食物或人物行为；每段至少准备一个备用素材。实拍友好主题必须让动态视频覆盖至少 3 个场景，优先每 6-12 秒切换一次镜头；同一视频不得跨场景复用，连续场景不得共享相同的构图签名。
+按镜头建立素材表：`segment_id`、`shot_id`、`narration_span`、`semantic_role`、`relevance_reason`、`relevance_score`、素材来源、许可、入点、出点和替代方案。`narration_span` 必须是该段旁白中的原句；`semantic_role` 使用 subject、action、mechanism、scale、evidence、consequence 或 comparison。优先高关联镜头：真实器官/实验/显微镜/天文观测/食物或人物行为；每段至少准备一个备用素材。实拍友好主题必须让动态视频覆盖至少 3 个场景，密集多素材短视频优先每 2.5-5 秒切换一次镜头；同一视频不得跨场景复用，连续场景不得共享相同的构图签名。
 
-组装前运行视觉多样性检查：`visual_type`、`primary_media_kind`、`composition_signature` 必须完整；至少 75% 的场景具有不同构图签名；声明视频为主媒体的场景必须有已冻结且许可字段完整的视频记录。静态素材例外必须由题材本身决定，不能因为检索超时就默认让整片变成静态模板。
+组装前运行视觉检查：每条已用素材的 `narration_span` 必须能在对应旁白中找到，相关性评分必须不低于 0.7，并具有明确语义作用与理由；`visual_type`、`primary_media_kind`、`composition_signature` 必须完整；至少 75% 的场景具有不同构图签名；声明视频为主媒体的场景必须有已冻结且许可字段完整的视频记录。静态素材例外必须由题材本身决定，不能因为检索超时就默认让整片变成静态模板。
 
 自主寻找和下载素材时读取 [public-media.md](public-media.md)。可以使用 `media-use` 管理已有素材和清单，但公共站点下载仍必须记录原始来源与许可。
 
